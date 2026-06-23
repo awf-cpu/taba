@@ -1,0 +1,31 @@
+# === Taba · .gitignore ===
+# Mantém só o jogável: index.html + sprites/backgrounds + README.
+
+# Arte: fontes full-res, testes, backups (o jogo usa só out/sprite/ e out/bg/)
+arte/out/*.png
+arte/out/_*/
+arte/out/px/
+arte/out/_test/
+arte/__pycache__/
+**/_backup*/
+arte/out/sprite/_*/
+
+# Scripts de geração e documentos de design — mantidos locais por ora
+arte/*.py
+arte/*.md
+arte/*.json
+docs/
+
+# Notas e arquivos de trabalho internos
+HANDOFF.md
+STATUS_FIM_SESSAO_*.md
+refs/
+
+# Infra local / temporários
+.claude/
+*.db
+*.log
+node_modules/
+*.pyc
+.DS_Store
+Thumbs.db
