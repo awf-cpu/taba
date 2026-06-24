@@ -116,6 +116,8 @@
   @keyframes sparkFly{from{opacity:1;transform:translate(0,0) scale(1.1)}to{opacity:0;transform:translate(var(--dx,8px),var(--dy,8px)) scale(.2)}}
   @keyframes shake2{0%,100%{transform:translate(0,0)}20%{transform:translate(-4px,2px)}40%{transform:translate(4px,-2px)}60%{transform:translate(-3px,-1px)}80%{transform:translate(3px,1px)}}
   .arena.shake{animation:shake2 .26s}
+  .squash .spr,.spr.squashfx{animation:squashFx .18s ease-out}
+  @keyframes squashFx{0%{transform:scale(1,1)}30%{transform:scale(1.18,.82)}60%{transform:scale(.94,1.06)}100%{transform:scale(1,1)}}
   .telegraph{position:absolute;border:2px solid #e25555;border-radius:50%;pointer-events:none;z-index:6;box-shadow:0 0 10px #e2555588;animation:teleFx .6s ease-out forwards}
   @keyframes teleFx{from{transform:scale(.3);opacity:.95}to{transform:scale(1.9);opacity:0}}
   .callout{position:absolute;font-family:var(--display);font-size:12px;font-weight:800;color:#ffe6a6;white-space:nowrap;text-shadow:0 0 8px #000,0 0 10px #d4a24c;pointer-events:none;z-index:8;animation:calloutFx 1s ease-out forwards}
@@ -656,7 +658,7 @@ function drawArena(){arena.querySelectorAll('.fighter').forEach(e=>e.remove());
     const rng=HERO_RANGE[h.key]??0.5;   // 0=linha de frente (colado no inimigo) · 1=retaguarda (fundo)
     el.style.left=Math.round(W*0.05+(1-rng)*W*0.62+i*6)+'px';
     el.innerHTML=`<span class="stacks" id="st${i}"></span><div class="spr">${heroIcon(h,true)}</div><div class="bar"><i></i></div>`;arena.appendChild(el);});
-  const e=document.createElement('div');e.className='fighter foe';e.id='enemy';e.style.right=Math.round(20+(1-(enemy.rng||0))*95)+'px';  // por alcance: melee avança à frente (~115) · ranged fica no fundo (~20)
+  const e=document.createElement('div');e.className='fighter foe';e.id='enemy';e.style.right=Math.round(20+(1-((enemy&&enemy.rng)||0))*95)+'px';  // por alcance: melee avança à frente (~115) · ranged fica no fundo (~20) · null no init = 0
   e.innerHTML=`<div class="spr">${enemyIcon(enemy)}</div><div class="name" id="eName"></div><div class="bar"><i id="eHp"></i></div>`;arena.appendChild(e);
   if(enemy&&enemy._walkIn){e.classList.add('walkin');setTimeout(()=>{if(e.isConnected)e.classList.remove('walkin');},520);delete enemy._walkIn;}
   waveQueue.forEach((m,qi)=>{const wq=document.createElement('div');wq.className='fighter foe';wq.id='wq'+qi;
@@ -690,9 +692,12 @@ function hitSpark(id,color){const p=arenaPt(id);for(let i=0;i<6;i++){const s=doc
   s.style.setProperty('--dx',(Math.cos(ang)*dist).toFixed(1)+'px');s.style.setProperty('--dy',(Math.sin(ang)*dist).toFixed(1)+'px');
   arena.appendChild(s);setTimeout(()=>s.remove(),330);}}
 function screenShake(){arena.classList.remove('shake');void arena.offsetWidth;arena.classList.add('shake');setTimeout(()=>arena.classList.remove('shake'),260);}
+let hitStopUntil=0;
+function hitStop(ms){const t=performance.now()+ms;if(t>hitStopUntil)hitStopUntil=t;}   // congela o combate brevemente (peso no acerto)
+function squash(id){const el=document.querySelector('#'+id+' .spr');if(!el)return;el.classList.remove('squashfx');void el.offsetWidth;el.classList.add('squashfx');setTimeout(()=>{if(el&&el.isConnected)el.classList.remove('squashfx');},190);}
 function telegraph(id){const p=arenaPt(id),d=document.createElement('div');d.className='telegraph';
   d.style.left=(p.x-20)+'px';d.style.top=(p.y-20)+'px';d.style.width='40px';d.style.height='40px';arena.appendChild(d);setTimeout(()=>d.remove(),600);}
-function deathFx(big){const p=arenaPt('enemy');hitSpark('enemy','#ffffff');hitSpark('enemy','#ffd56b');
+function deathFx(big){const p=arenaPt('enemy');hitStop(big?110:55);hitSpark('enemy','#ffffff');hitSpark('enemy','#ffd56b');
   if(big){screenShake();for(let k=0;k<3;k++)setTimeout(()=>hitSpark('enemy','#ff6a3d'),k*80);}
   const d=document.createElement('div');d.className='heal';d.textContent=big?'💥':'✦';d.style.color=big?'#ff8a4d':'#cfd8e0';
   d.style.left=p.x+'px';d.style.top=p.y+'px';d.style.fontSize=big?'26px':'16px';arena.appendChild(d);setTimeout(()=>d.remove(),800);}
@@ -769,6 +774,7 @@ function updateProgBtn(){const b=document.getElementById('progBtn');if(b)b.textC
 let last=performance.now();
 function tick(now){const dt=Math.min((now-last)/1000,0.25);last=now;
   if(narrativePause){requestAnimationFrame(tick);return;}   // pausa durante dilema/final
+  if(now<hitStopUntil){renderBars();requestAnimationFrame(tick);return;}   // hit-stop: congela o avanço (peso no impacto)
   if(!enemy)spawnEnemy();
   party.forEach((h,i)=>{if(h.curHp<=0)return;const st=heroStats(h);h.cd-=dt;
     if(st.hpRegen)h.curHp=Math.min(st.maxHp,h.curHp+st.hpRegen*dt);
@@ -787,7 +793,7 @@ function tick(now){const dt=Math.min((now-last)/1000,0.25);last=now;
         else if(h.key==='paje'){healFx();party.forEach(p=>{if(p.curHp>0)p.curHp=Math.min(effHp(p),p.curHp+effHp(p)*0.08);});}
         else aoePulse('#ffd56b');
         floatTxt(360,'✦'+dmg,'#ffd56b');}
-      dmg=Math.max(1,Math.floor(dmg*mobDef(enemy.def||0)));enemy.hp-=dmg;flash('enemy');hitSpark('enemy',crit?'#ffd56b':'#ffffff');if(crit)screenShake();
+      dmg=Math.max(1,Math.floor(dmg*mobDef(enemy.def||0)));enemy.hp-=dmg;flash('enemy');hitSpark('enemy',crit?'#ffd56b':'#ffffff');squash('enemy');if(crit){screenShake();hitStop(50);}
       if(!cast&&Math.random()<0.5)floatTxt(360+Math.random()*60,'-'+dmg,crit?'#ffd56b':null);
       if(enemy.hp<=0)killEnemy();}
     fireSkills(h,i,dt);});
@@ -801,12 +807,12 @@ function enemyAttack(m,dom,mult){mult=mult||1;m._atks=(m._atks||0)+1;
   let d2=m.atk*mult*(special?2.6:1)*(1-st.armor/(st.armor+120));
   const el=m.elem;if(el&&el!=='none'){const res=Math.min(0.8,st['res'+el.charAt(0).toUpperCase()+el.slice(1)]||0);d2*=(1-0.5*res);}
   const dmgTaken=Math.max(1,Math.floor(d2));
-  if(special&&dom==='enemy'){telegraph(dom);castFx(dom);aoePulse(ELEM_COLOR[m.elem]||'#e25555');screenShake();floatTxt(80,'⚠ habilidade!','#e25555');}
+  if(special&&dom==='enemy'){telegraph(dom);castFx(dom);aoePulse(ELEM_COLOR[m.elem]||'#e25555');screenShake();hitStop(60);floatTxt(80,'⚠ habilidade!','#e25555');}
   const ranged=(m.rng||0)>=0.5;
   if(ranged)enemyProjectile(dom,'h'+idx,m.proj);          // ranged: atira do fundo, não avança
   else if(dom==='enemy')lunge(dom,special?-44:-28);        // melee: clash corpo-a-corpo com o tank
   if(dom==='enemy')enemyAttackFrame();
-  tgt.curHp-=dmgTaken;flash('h'+idx);hurtFrame(idx,tgt);hitSpark('h'+idx,ELEM_COLOR[m.elem]||'#e25555');
+  tgt.curHp-=dmgTaken;flash('h'+idx);hurtFrame(idx,tgt);hitSpark('h'+idx,ELEM_COLOR[m.elem]||'#e25555');squash('h'+idx);
   if(tgt.curHp<=0)log(`${tgt.name} caiu...`,'crit');if(party.every(h=>h.curHp<=0))wipe();}
 function dropBossChest(){S.chests['chefe']=(S.chests['chefe']||0)+1;S.chests['dourado']=(S.chests['dourado']||0)+1;
   chestDropFx('🗝️');setTimeout(()=>chestDropFx('🎁'),200);
