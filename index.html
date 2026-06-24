@@ -539,6 +539,7 @@ function rankAttr(key,id){const a=ATTR_NODES.find(x=>x.id===id);if(!a)return;if(
 function resetAttrs(key){if(!confirm('Zerar os atributos deste herói (devolve os pontos)?'))return;S.heroAttrs[key]={};invalidateStats();renderPanel();save();}
 function baseStats(h){const lv=heroLevel(h.key);
   return {atkDmg:h.base.atk*(1+0.08*(lv-1)),atkSpeed:h.base.spd,critChance:0.18,critDmg:1.0,maxHp:Math.round(h.base.hp*(1+0.10*(lv-1))),armor:0,hpRegen:0,resFire:0,resCold:0,resLight:0};}
+const HERO_RANGE={cavaleiro:0,lanceiro:0.1,paje:0.45,feiticeiro:0.8,cacador:0.9,arqueiro:1};  // alcance por classe: 0=frente(melee) · 1=retaguarda — usado em heroStats (buff de fileira) e drawArena
 let statsCache={};function invalidateStats(){statsCache={};}
 function heroStats(h){if(statsCache[h.key])return statsCache[h.key];
   const st=baseStats(h),flat={},inc={},more={},g=S.gear[h.key]||{};
@@ -561,6 +562,8 @@ function heroStats(h){if(statsCache[h.key])return statsCache[h.key];
   out.atkDmg*=Math.pow(1.12,S.atkLvl)*(1+BON.atk+RB.atk)*legadoMul(); out.maxHp*=Math.pow(1.20,S.hpLvl)*(1+BON.hp);
   out.atkSpeed*=(1+BON.spd+RB.spd); out.critChance+=BON.crit; out.armor+=RB.armor;
   out.resFire+=RB.resAll||0; out.resCold+=RB.resAll||0; out.resLight+=RB.resAll||0;
+  const _rng=HERO_RANGE[h.key]??0.5;   // BUFF DE FILEIRA: linha de frente tanka (+armadura/vida) · retaguarda fere mais (+dano)
+  if(_rng<=0.3){out.armor*=1.30;out.maxHp*=1.10;} else {out.atkDmg*=1.15;}
   statsCache[h.key]=out;return out;}
 function effAtk(h){return heroStats(h).atkDmg;}
 function effHp(h){return heroStats(h).maxHp;}
@@ -649,7 +652,7 @@ function heroIcon(h,big){
 function enemyIcon(en){if(en&&en.img)return `<img class="spr-img big" src="${en.img}" alt="" onerror="this.outerHTML='${en.e}'">`;return en?en.e:'🪖';}
 const arena=document.getElementById('arena');
 // alcance por classe: 0=linha de frente (melee) · 1=retaguarda (ranged/caster)
-const HERO_RANGE={cavaleiro:0,lanceiro:0.1,paje:0.45,feiticeiro:0.8,cacador:0.9,arqueiro:1};
+// HERO_RANGE definido antes de heroStats (evita TDZ no buildParty inicial)
 const HERO_PROJ={arqueiro:'🏹',cacador:'🦴',feiticeiro:'🔥',paje:'✨',cavaleiro:'💥',lanceiro:'💢'};
 const HERO_FLIP={cacador:1,feiticeiro:1,cavaleiro:1};  // sprites que nasceram virados p/ esquerda · flipam p/ encarar a direita
 function drawArena(){arena.querySelectorAll('.fighter').forEach(e=>e.remove());
@@ -1085,10 +1088,11 @@ function panelStash(){
     S.tabs.push({id,name:'Aba '+id});S.activeTab=id;renderPanel();save();};}
 
 function panelFormacao(){
-  panel.innerHTML=`<h2>Formação — escolha até 3 guerreiros (estilo TBH)</h2>
-   <p class="muted">Deploy de no máx. 3 (slots extras viriam de runas). As outras classes lançam depois.</p>
-   <div class="cards">${HEROES.map(h=>{const on=S.deployed.includes(h.key);
-     return `<div class="card" style="${on?'border-color:var(--ambar)':''}"><h3>${heroIcon(h)} ${h.name}<span class="muted">${on?'em campo':'reserva'}</span></h3>
+  panel.innerHTML=`<h2>Formação — escolha até 3 guerreiros</h2>
+   <p class="muted">Deploy de no máx. 3 (slots extras via Runa da Aldeia). A <b>fileira</b> dá bônus — monte um time equilibrado.</p>
+   <p class="muted" style="font-size:11px">🛡 <b>Linha de frente</b> (Cavaleiro · Lanceiro): +30% armadura, +10% vida — tankam de perto. · 🏹 <b>Retaguarda</b> (Arqueira · Caçador · Feiticeiro · Pajé): +15% dano — ferem do fundo.</p>
+   <div class="cards">${HEROES.map(h=>{const on=S.deployed.includes(h.key);const front=(HERO_RANGE[h.key]??0.5)<=0.3;
+     return `<div class="card" style="${on?'border-color:var(--ambar)':''}"><h3>${heroIcon(h)} ${h.name} <small class="muted">${front?'🛡 frente':'🏹 retaguarda'}</small><span class="muted">${on?'em campo':'reserva'}</span></h3>
        <p>${h.desc}</p><p>⚡ ${powerOf(h)} · DPS ${dpsOf(h).toFixed(0)} · EHP ${ehpOf(h).toFixed(0)}</p>
        <button data-k="${h.key}" ${(!on&&S.deployed.length>=maxDeploy())?'disabled':''} style="${on?'background:#3a4a66;color:#cfe0d6':''}">${on?'Recuar':'Deploy'}</button></div>`;}).join('')}</div>`;
   panel.querySelectorAll('button[data-k]').forEach(b=>b.onclick=()=>deployToggle(b.dataset.k));}
@@ -1209,7 +1213,7 @@ function panelMercado(){const porRar={};S.inv.forEach(it=>porRar[it.rarNome]=(po
    <div style="margin:10px 0">${RARITIES.map(r=>`<div class="upg"><span style="color:var(--c-${r.k})">${r.nome}</span><span>${porRar[r.nome]||0} no baú · ~${r.val}🪙</span></div>`).join('')}</div>
    <p class="muted">⚖️ <b>Compliance:</b> mercado com valor real exige cuidado jurídico (loot box, pagamentos, tributação, CDC, LGPD, menores). Começar com moeda interna.</p>`;}
 
-function offline(){const dt=Math.min((Date.now()-(S.lastSeen||Date.now()))/1000,(8+RB.offlineH)*3600);const rate=(3+diff(S.region,S.stage)*1.4)*goldMul()*1.5;
+function offline(){const dt=Math.min((Date.now()-(S.lastSeen||Date.now()))/1000,(24+RB.offlineH)*3600);const rate=(3+diff(S.region,S.stage)*1.4)*goldMul()*1.5;
   if(dt>30){const g=Math.floor(rate*dt);S.gold+=g;log(`🌙 De volta! A resistência rendeu <span class="gold">${g.toLocaleString('pt-BR')}🪙</span> em ${Math.floor(dt/60)} min.`,'sys');}}
 
 recalcRB();recalcBon();offline();updateTop();drawArena();renderPanel();updateProgBtn();
