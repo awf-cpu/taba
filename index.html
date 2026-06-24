@@ -475,6 +475,7 @@ if(!S.gems)S.gems={urucum:0,jade:0,quartzo:0};
 if(!S.socketsV1){const addS=it=>{if(it&&!it.sockets){const ri=RARITIES.findIndex(r=>r.k===it.rar);it.sockets=Array(SOCKETS_BY_RI[Math.max(0,ri)]||0).fill(null);}};
   (S.inv||[]).forEach(addS);(S.stash||[]).forEach(addS);Object.values(S.gear||{}).forEach(g=>Object.values(g).forEach(addS));S.socketsV1=true;}
 if(S.cubeLevel===undefined){S.cubeLevel=1;S.cubeXp=0;}
+if(S.legado===undefined){S.legado=0;S.geracao=0;}   // prestígio
 if(!S.deployed||!S.deployed.length)S.deployed=["cavaleiro","arqueiro","feiticeiro"];
 S.deployed=S.deployed.filter(k=>HEROES.some(h=>h.key===k)).slice(0,3);if(!S.deployed.length)S.deployed=["cavaleiro"];
 if(!S.tabs||!S.tabs.length){S.tabs=[{id:1,name:"Geral"},{id:2,name:"Raros"},{id:3,name:"Lixo"}];S.activeTab=1;}
@@ -487,7 +488,8 @@ if(!S.statV1){const conv=it=>{if(it&&!it.mods){const sl=SLOTS.find(s=>s.k===it.s
   S.statV1=true;}
 
 // multiplicadores incluem o bônus do pet/deus ativo (BON) — recalcBon() atualiza ao ativar
-const atkMul=()=>Math.pow(1.12,S.atkLvl)*(1+BON.atk),goldMul=()=>Math.pow(1.15,S.goldLvl)*(1+BON.gold+RB.gold),hpMul=()=>Math.pow(1.20,S.hpLvl)*(1+BON.hp);
+const legadoMul=()=>1+(S.legado||0)*0.02;   // Prestígio "Gerações da Resistência": cada Legado = +2% dano/ouro/XP permanente
+const atkMul=()=>Math.pow(1.12,S.atkLvl)*(1+BON.atk)*legadoMul(),goldMul=()=>Math.pow(1.15,S.goldLvl)*(1+BON.gold+RB.gold)*legadoMul(),hpMul=()=>Math.pow(1.20,S.hpLvl)*(1+BON.hp);
 const cost=(b,l)=>Math.floor(b*Math.pow(1.55,l));
 const nodeKey=(r,s)=>r+"-"+s, diff=(r,s)=>r*NODES_PER_REGION+s;
 const isCleared=(r,s)=>!!S.cleared[nodeKey(r,s)];
@@ -556,7 +558,7 @@ function heroStats(h){if(statsCache[h.key])return statsCache[h.key];
   for(const k in pb.inc)inc[k]=(inc[k]||0)+pb.inc[k];
   const out={};for(const k in st){let v=(st[k]+(flat[k]||0))*(1+(inc[k]||0)/100);
     if(more[k])for(const mv of more[k])v*=(1+mv/100);out[k]=v;}
-  out.atkDmg*=Math.pow(1.12,S.atkLvl)*(1+BON.atk+RB.atk); out.maxHp*=Math.pow(1.20,S.hpLvl)*(1+BON.hp);
+  out.atkDmg*=Math.pow(1.12,S.atkLvl)*(1+BON.atk+RB.atk)*legadoMul(); out.maxHp*=Math.pow(1.20,S.hpLvl)*(1+BON.hp);
   out.atkSpeed*=(1+BON.spd+RB.spd); out.critChance+=BON.crit; out.armor+=RB.armor;
   out.resFire+=RB.resAll||0; out.resCold+=RB.resAll||0; out.resLight+=RB.resAll||0;
   statsCache[h.key]=out;return out;}
@@ -819,7 +821,7 @@ function dropBossChest(){S.chests['chefe']=(S.chests['chefe']||0)+1;S.chests['do
   log(`🗝️ <b>Baú de Chefe</b> + 🎁 Baú Dourado conquistados!`,'loot');if(active==='bau')renderPanel();}
 function killEnemy(){deathFx(isBoss);const g=Math.floor(enemyReward()*goldMul());S.gold+=g;S.kills++;killsOnNode++;
   floatTxt(380,'+'+g+'🪙','#D4A24C');
-  {const xpg=Math.round((2+Math.pow(diff(S.region,S.stage),2)*1.2)*(isBoss?10:1)*(1+RB.xp)); // escala ~BaseExp real do TBH
+  {const xpg=Math.round((2+Math.pow(diff(S.region,S.stage),2)*1.2)*(isBoss?10:1)*(1+RB.xp)*legadoMul()); // escala ~BaseExp real do TBH
    S.deployed.forEach(k=>{const b=heroLevel(k);S.heroXp[k]=(S.heroXp[k]||0)+xpg;
      if(heroLevel(k)>b){log(`⭐ ${HEROES.find(h=>h.key===k).name} subiu pro Lv${heroLevel(k)}! (+1 ponto de skill)`,'sys');invalidateStats();}});}
   if(isBoss){
@@ -954,6 +956,18 @@ function showEnding(){const e=computeEnding();S.ending=Object.keys(ENDINGS).find
    <div class="ovlopts"><button id="endContinue"><b>Continuar jogando</b><small>endgame: conquistas, drops, mercado</small></button></div></div>`;
  document.body.appendChild(o);banner('✦ '+e.t);
  document.getElementById('endContinue').onclick=()=>{closeOvl();log(`🏁 Final: <b>${e.t}</b>. O jogo continua — endgame.`,'sys');save();};}
+// Prestígio "Gerações da Resistência": encerra a expedição por Legado permanente
+function legadoGain(){return (S.region+1)*(1+(S.difficulty||0));}   // ganho por geração (escala com progresso/dificuldade · run-based)
+function canPrestige(){return S.region>=1;}                          // libera após abrir o Cap II
+function doPrestige(){if(!canPrestige())return;const g=legadoGain();
+  if(!confirm(`Encerrar a Geração ${(S.geracao||0)+1}?\n\nA EXPEDIÇÃO reinicia (região, ouro, níveis dos heróis, gear, inventário, Cubo).\nVocê GANHA +${g} de Legado permanente → +${g*2}% em dano/ouro/XP pra sempre.\n\nPermanecem: Pets, Deuses, Runas, dificuldades e a Crônica (suas escolhas/finais).`))return;
+  S.legado=(S.legado||0)+g; S.geracao=(S.geracao||0)+1;
+  S.region=0;S.stage=1;S.cleared={};S.gold=0;killsOnNode=0;enemy=null;waveQueue=[];
+  S.heroXp={};S.heroSkills={};S.heroAttrs={};HEROES.forEach(h=>S.gear[h.key]={});S.inv=[];S.stash=[];
+  S.chests={};S.cubeLevel=1;S.cubeXp=0;S.atkLvl=0;S.goldLvl=0;S.hpLvl=0;S.gems={urucum:0,jade:0,quartzo:0};
+  invalidateStats();party=buildParty();drawArena();updateTop();renderPanel();save();
+  banner('✊ GERAÇÃO '+S.geracao);
+  log(`✊ <b>Geração ${S.geracao}</b> tombou — mas deixou <b>+${g} de Legado</b>. A resistência recomeça mais forte (+${(S.legado*2)}% no total).`,'sys');}
 function panelCronica(){const post=S.posture,u=S.uniao,postPct=(post+100)/2;
  const chosen=Object.keys(S.chapterChoices||{}).filter(k=>S.chapterChoices[k]&&S.chapterChoices[k]!=='pending');
  const endRows=Object.keys(ENDINGS).map(k=>{const e=ENDINGS[k];const got=S.ending===k;
@@ -968,7 +982,12 @@ function panelCronica(){const post=S.posture,u=S.uniao,postPct=(post+100)/2;
   <h3 style="margin-top:10px">Decisões (${chosen.length}/${CHOICE_EVENTS.length})</h3>
   ${chosen.length?chosen.map(k=>`<div class="upg"><span>${CHOICE_EVENTS[k]?CHOICE_EVENTS[k].title:('Cap '+(+k+1))}</span><small class="muted">${S.chapterChoices[k]}</small></div>`).join(''):'<p class="muted">Nenhuma ainda. Derrote o chefe de um capítulo pra enfrentar seu primeiro dilema.</p>'}
   <h3 style="margin-top:10px">Finais</h3>${endRows}
-  ${S.endgame?'<p class="muted" style="margin-top:8px">🏁 Você já alcançou um final. New Game+ e mais finais virão em ondas futuras.</p>':''}`;}
+  <h3 style="margin-top:12px">✊ Gerações da Resistência</h3>
+  <p class="muted" style="font-size:11px">Cada geração que tomba deixa <b>Legado</b> permanente (+2% dano/ouro/XP por ponto). A expedição reinicia; Pets/Deuses/Runas/Crônica permanecem.</p>
+  <div class="upg"><span>Geração</span><small class="muted">#${S.geracao||0}</small></div>
+  <div class="upg"><span>Legado acumulado</span><small class="muted">${S.legado||0} · +${(S.legado||0)*2}% global</small></div>
+  <div class="upg"><span>${canPrestige()?'Encerrar geração → +'+legadoGain()+' Legado':'Abra o Cap II pra poder encerrar a geração'}</span><button ${canPrestige()?'':'disabled'} onclick="doPrestige()">✊ Nova Geração</button></div>
+  ${S.endgame?'<p class="muted" style="margin-top:8px">🏁 Você já alcançou um final — o jogo continua (endgame: gerações, conquistas, drops).</p>':''}`;}
 let active='aldeia';const panel=document.getElementById('panel');
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{active=b.dataset.p;
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x===b));renderPanel();});
