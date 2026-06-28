@@ -38,9 +38,10 @@
   .fighter.walkin{animation:walkIn .5s ease-out}  /* inimigo entra caminhando da direita */
   .fighter::after{content:'';position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);width:40px;height:10px;
     background:radial-gradient(ellipse at center,#000c,#0007 45%,transparent 72%);border-radius:50%;z-index:-1;pointer-events:none}
-  .fighter .spr{font-size:34px;filter:drop-shadow(0 4px 3px #0008)}  /* sem bob fake (flutuava) · sombra de contato faz o grounding */
+  .fighter .spr{font-size:34px;filter:drop-shadow(0 4px 3px #0008);transform-origin:50% 100%;animation:breathe 3.4s ease-in-out infinite}  /* respiração sutil ancorada nos pés (planta no chão, não flutua) */
+  .fighter:nth-child(2) .spr{animation-delay:.6s}.fighter:nth-child(3) .spr{animation-delay:1.2s}
   .fighter:nth-child(2) .spr{animation-delay:.3s}.fighter:nth-child(3) .spr{animation-delay:.6s}
-  @keyframes idleBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes breathe{0%,100%{transform:scaleY(1) scaleX(1)}50%{transform:scaleY(1.02) scaleX(.99)}}
   .fighter.hit .spr{transform:translateX(6px) scale(.92);animation:none}
   /* Arte: sprite por <img> quando existir; senão o heroIcon() cai pro emoji via onerror */
   .spr-img{width:22px;height:22px;vertical-align:middle;object-fit:contain;border-radius:4px}
