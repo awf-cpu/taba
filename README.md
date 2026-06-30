@@ -37,5 +37,10 @@ Abra uma *issue* (pra discutir design, balanceamento, bugs) ou um *PR*. O roadma
 ## ⚖️ Direção de conteúdo
 O antagonista é **a invasão colonial**, sempre representado pela **indumentária/equipamento de época** (couraça, arcabuz, caravela, hábito, correntes) — **nunca** por etnia ou caricatura. Entidades mitológicas e fauna levam créditos de origem in-game, com respeito às culturas representadas.
 
+## 🙏 Créditos & propósito
+**Propósito pedagógico.** Taba é um projeto **público e educativo** — usa a linguagem do *idle RPG* para divulgar a **história da resistência dos povos originários do Brasil** (1500 → ~1693). Pensado para ser **expansível** (novos capítulos, regiões e fontes históricas).
+
+**Inspiração.** O Taba é uma **homenagem ao gênero** *idle RPG*, com inspiração declarada em **TBH: Taskbar Hero**. A inspiração é de **mecânica e profundidade de progressão** — **toda a arte, história, código e os valores de balanceamento do Taba são originais e próprios**. Este repositório **não distribui** dados, tabelas, textos ou assets de terceiros; números de balanceamento foram desenhados para o Taba. Marcas e jogos citados pertencem aos seus respectivos donos.
+
 ---
 *Dr. André William Feix · OAB/SC 56.213 · ecossistema Pindorama.*
