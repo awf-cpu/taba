@@ -36,6 +36,11 @@
   .fighter.hflip .spr img{transform:scaleX(-1)} /* heróis que nasceram virados p/ esquerda → encaram a direita */
   @keyframes walkIn{from{transform:translateX(130px)}to{transform:translateX(0)}}
   .fighter.walkin{animation:walkIn .5s ease-out}  /* inimigo entra caminhando da direita */
+  /* === marcha entre waves (câmera-scroll) === */
+  @keyframes marchScroll{0%{background-position:50% 100%}100%{background-position:41% 100%}}  /* mundo desliza p/ esquerda = avanço */
+  .arena.marching{animation:marchScroll .82s ease-in-out}
+  @keyframes runBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .arena.marching .fighter:not(.foe) .spr{animation:runBob .25s ease-in-out infinite}  /* heróis "correndo" */
   .fighter::after{content:'';position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);width:40px;height:10px;
     background:radial-gradient(ellipse at center,#000c,#0007 45%,transparent 72%);border-radius:50%;z-index:-1;pointer-events:none}
   .fighter .spr{font-size:34px;filter:drop-shadow(0 4px 3px #0008);transform-origin:50% 100%;animation:breathe 3.4s ease-in-out infinite}  /* respiração sutil ancorada nos pés (planta no chão, não flutua) */
@@ -232,7 +237,7 @@ const REGIONS = [
 REGIONS.forEach(R=>{if(R.eimg)R.bimg=R.eimg.replace('inimigo_','boss_');}); // sprite de chefe Z-Image (fallback emoji be via enemyIcon)
 const NODES_PER_REGION=10;   // 1-1..1-9 normais · 1-10 = CHEFE da fase (luta só contra ele)
 const STAGE_QUOTA=15;        // abates p/ concluir uma fase normal (desacelera a progressão)
-// Classes = AS MESMAS do TBH (Knight/Ranger/Sorcerer...). "Indígena/humano" é a DIREÇÃO DE ARTE, não a classe.
+// Classes no molde clássico do gênero (guerreiro/arqueiro/mago/lanceiro/caçador/suporte). "Indígena/humano" é a DIREÇÃO DE ARTE, não a classe.
 const HEROES=[
   {key:"cavaleiro", name:"Cavaleiro", spr:"🛡️",img:"arte/out/sprite/cavaleiro_256.png", base:{atk:8, spd:1.0,hp:140},desc:"Knight · linha de frente (tanque)"},
   {key:"arqueiro",  name:"Arqueiro",  spr:"🏹",img:"arte/out/sprite/arqueiro_256.png",  base:{atk:7, spd:1.7,hp:85 },desc:"Ranger · dano à distância (clears rápidos)"},
@@ -286,7 +291,7 @@ const SKILLS=[
   {id:"lan5",h:"lanceiro",n:"Rodopio de Machado",lv:36,stat:"atkSpeed",type:"inc",per:8},
   {id:"lan6",h:"lanceiro",n:"Sede de Sangue",lv:50,stat:"hpRegen",type:"flat",per:6},
 ];
-// 10 raridades (ladder TBH · tema indígena/espiritual). Imortal-equivalente = Encantado (futuro Soulstone).
+// 10 raridades (ladder do gênero · tema indígena/espiritual). Imortal-equivalente = Encantado (futuro Soulstone).
 const RARITIES=[
   {k:"comum",     nome:"Comum",     w:60,   mul:1.0, val:8},
   {k:"incomum",   nome:"Incomum",   w:24,   mul:1.6, val:25},
@@ -311,7 +316,7 @@ const ITEM_TYPES=[
   {t:"Anel de Osso",e:"💍",slot:"anel"},
   {t:"Bracelete de Sementes",e:"🪢",slot:"bracelete"},
 ];
-// 10 slots (TBH). stat = a quê o slot contribui (atk/hp). Joias (amuleto/botoque/anel/bracelete) = gargalo de power.
+// 10 slots de equipamento. stat = a quê o slot contribui (atk/hp). Joias (amuleto/botoque/anel/bracelete) = gargalo de power.
 const SLOTS=[
   {k:"arma",     n:"Arma",      e:"🏏", stat:"atk"},
   {k:"sub",      n:"Secundária",e:"🛡️", stat:"atk"},
@@ -373,7 +378,7 @@ function recalcBon(){const b={atk:0,hp:0,gold:0,crit:0,spd:0,loot:0};
   [PETS.find(p=>p.key===S.activePet),DEUSES.find(d=>d.key===S.activeDeus)].forEach(o=>{
     if(o&&o.eff)for(const k in o.eff)b[k]=(b[k]||0)+o.eff[k];});BON=b;invalidateStats();}
 
-// ===== RUNAS · buffs globais permanentes (comprados com ouro · árvore TBH) =====
+// ===== RUNAS · buffs globais permanentes (comprados com ouro · árvore de runas) =====
 const RUNES=[
   {k:"guerra", n:"Runa da Guerra", e:"⚔️", stat:"atk",     per:0.03, base:400,  max:60, d:"+3% dano de todos / nível"},
   {k:"furia",  n:"Runa da Fúria",  e:"💨", stat:"spd",     per:0.02, base:500,  max:60, d:"+2% vel. de ataque de todos"},
@@ -406,13 +411,13 @@ const CHESTS=[
 const chestMeta=k=>CHESTS.find(c=>c.k===k);
 function rollChestTier(){let t=CHESTS.reduce((a,c)=>a+c.w,0),x=Math.random()*t;for(const c of CHESTS){if((x-=c.w)<0)return c;}return CHESTS[0];}
 function rarFromDist(dist){let t=0;for(const k in dist)t+=dist[k];let x=Math.random()*t;for(const k in dist){if((x-=dist[k])<0)return RARITIES.find(r=>r.k===k);}return RARITIES[0];}
-// ===== SOCKETS + GEMAS (TIER A · "gargalo de power" do TBH · GradeInfoData) =====
+// ===== SOCKETS + GEMAS (TIER A · "gargalo de power") =====
 const GEMS=[
  {k:'urucum',e:'🔴',n:'Urucum',stat:'atkDmg',type:'inc',val:8,desc:'+8% dano'},
  {k:'jade',e:'🟢',n:'Jade',stat:'maxHp',type:'inc',val:8,desc:'+8% vida'},
  {k:'quartzo',e:'🔵',n:'Quartzo',stat:'critChance',type:'flat',val:0.03,desc:'+3% crítico'},
 ];
-const SOCKETS_BY_RI=[0,1,2,4,5,6,7,7,7,7]; // soquetes por índice de raridade (I+D+E · GradeInfoData TBH)
+const SOCKETS_BY_RI=[0,1,2,4,5,6,7,7,7,7]; // soquetes por índice de raridade
 function socketCount(rar){const i=RARITIES.findIndex(r=>r.k===(rar.k||rar));return SOCKETS_BY_RI[Math.max(0,i)]||0;}
 function gemBy(k){return GEMS.find(g=>g.k===k);}
 // Nível do Cubo (1-100 · ganha XP usando o Cubo · destrava melhorias)
@@ -502,7 +507,7 @@ const STATS={atkDmg:{n:'Dano'},atkSpeed:{n:'Vel.Atq'},critChance:{n:'Crít',pct:
   resFire:{n:'Res.Fogo',pct:1},resCold:{n:'Res.Gelo',pct:1},resLight:{n:'Res.Raio',pct:1}};
 const STAT_PW={atkDmg:1,atkSpeed:2.5,critChance:600,critDmg:80,maxHp:0.25,armor:1.2,hpRegen:1.5,resFire:300,resCold:300,resLight:300};
 // ===== Níveis por herói (XP) + Skill Points =====
-// Curva de XP REAL do TBH (LevelInfoData · ExpForLevelUp Lv1..Lv100 · com o platô intencional Lv40-43)
+// Curva de XP (Lv1..Lv100 · com platô intencional Lv40-43)
 const XP_PER_LVL=[30,150,500,1000,2600,6500,13000,23400,37440,74880,134784,229133,366613,513258,718561,970057,1309577,1702450,2042940,3064410,3615531,4157861,4739962,5356157,6266704,7708046,9866299,12135548,14198591,15618450,17180295,18709341,20170728,21528801,22748528,23796986,24644829,25267650,25647149,25772024,25638532,25250674,24619997,28490088,32968530,38150952,44148014,51653176,63533406,81322760,100026995,117031584,125223795,133989461,143368723,153404534,164142851,175632851,187927151,201082052,215157796,230218842,241729784,253816273,266507087,279832441,293824063,308515266,323941029,340138080,357144984,375002233,393752345,413439962,434111960,455817558,478608436,559971870,688765400,881619712,1084392246,1268738928,1306801096,1346005129,1386385283,1427976841,1470816146,1514940630,1560388849,1607200514,1655416529,1705079025,1739180606,1773964218,1809443502,1845632372,1882545019,1920195919,1958599837,1997771834];
 const XP_THRESH=(()=>{const a=[0,0];for(let L=2;L<=100;L++)a[L]=a[L-1]+XP_PER_LVL[L-2];return a;})(); // a[L]=XP p/ alcançar nível L
 function heroLevel(key){const xp=S.heroXp[key]||0;let L=1;while(L<100&&xp>=XP_THRESH[L+1])L++;return L;}
@@ -520,7 +525,7 @@ function partySkillBuffs(){const flat={},inc={};
     SKILLS.filter(s=>s.h===k&&s.party).forEach(s=>{const r=sk[s.id]||0;if(r>0){const b=s.type==='inc'?inc:flat;b[s.stat]=(b[s.stat]||0)+s.per*r;}});}
   return {flat,inc};}
 // ===== Árvore de ATRIBUTOS por herói (passivas alocáveis · separada das skills · ponto por nível) =====
-// árvore gated (estilo TBH · req = pontos cumulativos investidos no herói pra destravar o nó)
+// árvore gated (req = pontos cumulativos investidos no herói pra destravar o nó)
 const ATTR_NODES=[
   {id:'ad',n:'Força',      stat:'atkDmg',    type:'inc', per:3,    max:20, req:0},
   {id:'hp',n:'Vigor',      stat:'maxHp',     type:'inc', per:3,    max:20, req:0},
@@ -571,7 +576,7 @@ function effHp(h){return heroStats(h).maxHp;}
 function dpsOf(h){const s=heroStats(h);return s.atkDmg*s.atkSpeed*(1+s.critChance*s.critDmg);}
 function ehpOf(h){const s=heroStats(h);return s.maxHp*(1+s.armor/120);}
 function powerOf(h){return Math.round(dpsOf(h)+ehpOf(h)/5);}
-// Affixes 10-tier REAIS do TBH (StatModInfoData) · [min,max] por tier · div = conversão p/ escala Taba (%/frações)
+// Affixes 10-tier · [min,max] por tier · div = conversão p/ escala Taba (%/frações)
 const AFFIX_DEFS={
   atkDmg:    {pool:'atk',div:1,   tiers:[[1,2],[2,3],[3,6],[6,10],[10,15],[15,30],[30,50],[50,100],[100,150],[150,300]]},
   atkSpeed:  {pool:'atk',type:'inc',div:1,tiers:[[40,50],[50,60],[60,70],[70,90],[90,110],[110,130],[130,150],[150,170],[170,200],[200,250]]},
@@ -656,6 +661,13 @@ const arena=document.getElementById('arena');
 // HERO_RANGE definido antes de heroStats (evita TDZ no buildParty inicial)
 const HERO_PROJ={arqueiro:'🏹',cacador:'🦴',feiticeiro:'🔥',paje:'✨',cavaleiro:'💥',lanceiro:'💢'};
 const HERO_FLIP={cacador:1,feiticeiro:1,cavaleiro:1};  // sprites que nasceram virados p/ esquerda · flipam p/ encarar a direita
+// velocidade de marcha por classe (tank lidera · suporte no fim) → liderança na corrida entre waves
+const HERO_MOVE={cavaleiro:1,arqueiro:0.6,lanceiro:0.6,feiticeiro:0.28,cacador:0.2,paje:0};
+let marchUntil=0;const MARCH_MS=820;   // janela em que os heróis avançam e a próxima leva entra
+function startMarch(now){marchUntil=now+MARCH_MS;arena.classList.add('marching');
+  party.forEach((h,i)=>{const el=document.getElementById('h'+i);if(el)el.style.transform='translateX('+(22+(HERO_MOVE[h.key]??0.4)*26)+'px)';});}  // mais rápido avança mais
+function endMarch(){arena.classList.remove('marching');
+  party.forEach((h,i)=>{const el=document.getElementById('h'+i);if(el)el.style.transform='';});}  // câmera "volta": heróis recuam ao ponto de combate
 function drawArena(){arena.querySelectorAll('.fighter').forEach(e=>e.remove());
   arena.style.backgroundImage=`linear-gradient(#0003,#0006),url('arte/out/bg/${REGION_BG[S.region]||'mata_atlantica'}.png')`;
   arena.style.backgroundSize='cover';arena.style.backgroundPosition='center bottom';
@@ -781,7 +793,10 @@ let last=performance.now();
 function tick(now){const dt=Math.min((now-last)/1000,0.25);last=now;
   if(narrativePause){requestAnimationFrame(tick);return;}   // pausa durante dilema/final
   if(now<hitStopUntil){renderBars();requestAnimationFrame(tick);return;}   // hit-stop: congela o avanço (peso no impacto)
-  if(!enemy)spawnEnemy();
+  if(!enemy){   // entre waves: heróis marcham (mundo rola), depois a próxima leva entra
+    if(marchUntil===0)startMarch(now);
+    else if(now>=marchUntil){endMarch();marchUntil=0;spawnEnemy();}
+    renderBars();requestAnimationFrame(tick);return;}
   party.forEach((h,i)=>{if(h.curHp<=0)return;const st=heroStats(h);h.cd-=dt;
     if(st.hpRegen)h.curHp=Math.min(st.maxHp,h.curHp+st.hpRegen*dt);
     if(h.cd<=0&&enemy){h.cd=1/st.atkSpeed;const melee=(HERO_RANGE[h.key]??0.5)<=0.3;
@@ -825,7 +840,7 @@ function dropBossChest(){S.chests['chefe']=(S.chests['chefe']||0)+1;S.chests['do
   log(`🗝️ <b>Baú de Chefe</b> + 🎁 Baú Dourado conquistados!`,'loot');if(active==='bau')renderPanel();}
 function killEnemy(){deathFx(isBoss);const g=Math.floor(enemyReward()*goldMul());S.gold+=g;S.kills++;killsOnNode++;
   floatTxt(380,'+'+g+'🪙','#D4A24C');
-  {const xpg=Math.round((2+Math.pow(diff(S.region,S.stage),2)*1.2)*(isBoss?10:1)*(1+RB.xp)*legadoMul()); // escala ~BaseExp real do TBH
+  {const xpg=Math.round((2+Math.pow(diff(S.region,S.stage),2)*1.2)*(isBoss?10:1)*(1+RB.xp)*legadoMul()); // escala de XP por dificuldade
    S.deployed.forEach(k=>{const b=heroLevel(k);S.heroXp[k]=(S.heroXp[k]||0)+xpg;
      if(heroLevel(k)>b){log(`⭐ ${HEROES.find(h=>h.key===k).name} subiu pro Lv${heroLevel(k)}! (+1 ponto de skill)`,'sys');invalidateStats();}});}
   if(isBoss){
@@ -1160,7 +1175,7 @@ function panelSkills(){const view=skillsView;
        <div class="bar" style="width:100%;height:7px"><i style="width:${xi.pct}%;background:var(--c-raro)"></i></div>
        <p class="muted" style="font-size:10px">XP ${Math.floor(xi.cur)} · ${pts>0?`<b style="color:var(--ambar)">${pts} ponto(s) livre(s)</b>`:'sem pontos livres'}</p>
        ${rows}</div>`;}).join('')}</div>`;}
-// ===== CUBO (8 funções · TBH) · v1: Síntese · Alquimia · Decoração (resto estruturado) =====
+// ===== CUBO (8 funções) · v1: Síntese · Alquimia · Decoração (resto estruturado) =====
 const RAR_NEXT=k=>{const i=RARITIES.findIndex(r=>r.k===k);return i>=0&&i<RARITIES.length-1?RARITIES[i+1]:null;};
 function allItemsCount(){const c={};S.inv.concat(S.stash).forEach(it=>c[it.rar]=(c[it.rar]||0)+1);return c;}
 function synthesize(rarK){const next=RAR_NEXT(rarK);if(!next)return;
