@@ -114,6 +114,11 @@
   .heal{position:absolute;font-size:15px;color:#7fd1a0;font-weight:700;pointer-events:none;animation:rise .8s ease-out forwards}
   .chestdrop{position:absolute;font-size:20px;pointer-events:none;z-index:6;animation:chestFall 1s ease-in forwards}
   @keyframes chestFall{0%{transform:translateY(-34px) scale(.5);opacity:0}30%{opacity:1}70%{transform:translateY(2px) scale(1.05)}100%{transform:translateY(-10px) scale(1);opacity:0}}
+  /* widget de auto-abertura de baús (loop de loot) */
+  .autoopen{position:absolute;top:8px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:6px;
+    background:#0d2236cc;border:1px solid #2a4a66;border-radius:8px;padding:3px 8px;font-size:11px;color:#cfe0d6;z-index:5}
+  .autoopen .ab{width:56px;height:6px;background:#00000066;border-radius:4px;overflow:hidden}
+  .autoopen .ab i{display:block;height:100%;width:0;background:linear-gradient(90deg,#D4A24C,#ffcf7a);transition:width .12s linear}
   .stacks{position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:9px;color:#ff8c5a;font-weight:700;text-shadow:0 1px 2px #000;white-space:nowrap}
   .casting .spr{animation:cast .35s ease-out}
   @keyframes cast{0%{transform:scale(1)}40%{transform:scale(1.22) translateY(-3px)}100%{transform:scale(1)}}
@@ -194,7 +199,7 @@
     <div class="stat">🎒 <b id="invc">0</b>/<span id="invcap">48</span></div>
   </div>
   <div class="wrap">
-    <div class="arena" id="arena"><div class="ground"></div><div class="node-label" id="nodeLabel"></div><div class="stagebar" id="stageBar"><i id="stageProg"></i><span id="stageTxt"></span></div><button class="progbtn" id="progBtn">▶ Auto</button></div>
+    <div class="arena" id="arena"><div class="ground"></div><div class="node-label" id="nodeLabel"></div><div class="stagebar" id="stageBar"><i id="stageProg"></i><span id="stageTxt"></span></div><button class="progbtn" id="progBtn">▶ Auto</button><div class="autoopen" id="autoOpenUI"></div></div>
     <div class="nav">
       <button data-p="aldeia" class="active">⚔️ Aldeia</button>
       <button data-p="formacao">🪶 Formação</button>
@@ -400,13 +405,13 @@ function buyRune(k){const r=RUNES.find(x=>x.k===k);if(!r)return;const l=S.runes[
   log(`🔰 ${r.n} → Nv.${l+1}.`,'sys');updateTop();renderPanel();save();}
 
 // ===== Baús por TIER: o drop é um baú; abrir rola raridade pela distribuição do tier =====
-const CHESTS=[
-  {k:"cipo",     nome:"Baú de Cipó",   e:"🧺", w:58,  dist:{comum:80,incomum:17,raro:3}},
-  {k:"madeira",  nome:"Baú de Madeira",e:"📦", w:30,  dist:{comum:40,incomum:40,raro:18,lendario:2}},
-  {k:"osso",     nome:"Baú de Osso",   e:"🦴", w:9,   dist:{incomum:38,raro:44,lendario:16,encantado:2}},
-  {k:"dourado",  nome:"Baú Dourado",   e:"🎁", w:2.5, dist:{raro:38,lendario:48,encantado:12,ancestral:2}},
-  {k:"encantado",nome:"Baú Encantado", e:"✨", w:0.5, dist:{lendario:48,encantado:40,ancestral:10,sagrado:2}},
-  {k:"chefe",    nome:"Baú de Chefe",  e:"🗝️", w:0,   dist:{lendario:40,encantado:35,ancestral:18,sagrado:6,celestial:1}}, // só de boss (w:0 = nunca de mob)
+const CHESTS=[   // cd = segundos de auto-abertura (comum abre rápido · raro demora = mais suspense)
+  {k:"cipo",     nome:"Baú de Cipó",   e:"🧺", w:58,  cd:10, dist:{comum:80,incomum:17,raro:3}},
+  {k:"madeira",  nome:"Baú de Madeira",e:"📦", w:30,  cd:14, dist:{comum:40,incomum:40,raro:18,lendario:2}},
+  {k:"osso",     nome:"Baú de Osso",   e:"🦴", w:9,   cd:20, dist:{incomum:38,raro:44,lendario:16,encantado:2}},
+  {k:"dourado",  nome:"Baú Dourado",   e:"🎁", w:2.5, cd:26, dist:{raro:38,lendario:48,encantado:12,ancestral:2}},
+  {k:"encantado",nome:"Baú Encantado", e:"✨", w:0.5, cd:32, dist:{lendario:48,encantado:40,ancestral:10,sagrado:2}},
+  {k:"chefe",    nome:"Baú de Chefe",  e:"🗝️", w:0,   cd:30, dist:{lendario:40,encantado:35,ancestral:18,sagrado:6,celestial:1}}, // só de boss (w:0 = nunca de mob)
 ];
 const chestMeta=k=>CHESTS.find(c=>c.k===k);
 function rollChestTier(){let t=CHESTS.reduce((a,c)=>a+c.w,0),x=Math.random()*t;for(const c of CHESTS){if((x-=c.w)<0)return c;}return CHESTS[0];}
@@ -443,20 +448,41 @@ function makeItem(rar){const tp=ITEM_TYPES[Math.floor(Math.random()*ITEM_TYPES.l
   const pw=itemPower(mods),val=Math.floor(rar.val*(1+lvl*0.05));
   const tab=(ri>=3&&S.tabs[1])?S.tabs[1].id:S.activeTab;
   return {id:Date.now()+Math.random(),nome:tp.t,e:tp.e,slot:tp.slot,rar:rar.k,rarNome:rar.nome,lvl,mods,sockets:Array(socketCount(rar)).fill(null),pw,val,tab};}
+function dequeueChest(k){const qi=S.chestQueue.indexOf(k);if(qi>=0)S.chestQueue.splice(qi,1);}
 function openChest(k){if(!(S.chests[k]>0))return;
-  S.chests[k]--;const c=chestMeta(k),rar=rarFromDist(c.dist),it=makeItem(rar);const toInv=invPush(it);
+  S.chests[k]--;dequeueChest(k);const c=chestMeta(k),rar=rarFromDist(c.dist),it=makeItem(rar);const toInv=invPush(it);
   log(`${c.e} ${c.nome} → <b style="color:var(--c-${rar.k})">${it.nome} ${rar.nome}</b> (PWR ${it.pw})${toInv?'':' (→ Baú, inv. cheio)'}`,'loot');
   updateTop();renderPanel();save();}
 function openAllChests(k){let n=0,over=0;const c=chestMeta(k);while(S.chests[k]>0){S.chests[k]--;if(!invPush(makeItem(rarFromDist(c.dist))))over++;n++;}
+  S.chestQueue=S.chestQueue.filter(x=>x!==k);
   if(n)log(`Abriu ${n}× ${c.e} ${c.nome}.${over?' '+over+' foram pro Baú.':''}`,'loot');
   updateTop();renderPanel();save();}
+// ===== AUTO-ABERTURA (loop de loot · fila + cooldown por tier · estilo idle) =====
+let autoOpenT=0,autoOpenLast=null;
+function syncChestQueue(){if(!Array.isArray(S.chestQueue))S.chestQueue=[];
+  const total=Object.values(S.chests||{}).reduce((a,b)=>a+(b||0),0);
+  if(S.chestQueue.length!==total){S.chestQueue=[];CHESTS.forEach(c=>{for(let i=0;i<(S.chests[c.k]||0);i++)S.chestQueue.push(c.k);});}}
+function autoOpenTick(dt){if(!S.autoOpen){if(autoOpenLast!==null){autoOpenLast=null;updateAutoOpenUI();}return;}
+  const key=S.chestQueue&&S.chestQueue[0];
+  if(!key){if(autoOpenLast!==null){autoOpenLast=null;autoOpenT=0;updateAutoOpenUI();}return;}
+  if(key!==autoOpenLast){autoOpenLast=key;autoOpenT=0;}
+  autoOpenT+=dt;
+  if(autoOpenT>=chestMeta(key).cd){autoOpenT=0;openChest(key);}   // openChest já desenfileira
+  updateAutoOpenUI();}
+function updateAutoOpenUI(){const el=document.getElementById('autoOpenUI');if(!el)return;
+  const key=S.autoOpen&&S.chestQueue&&S.chestQueue[0];
+  if(!key){el.style.display='none';return;}
+  const c=chestMeta(key),q=S.chestQueue.length,pct=Math.min(100,autoOpenT/c.cd*100);
+  el.style.display='flex';
+  el.innerHTML=`<span style="font-size:14px">${c.e}</span><span>${q>1?'fila '+q:'abrindo'}</span><span class="ab"><i style="width:${pct}%"></i></span>`;}
+function toggleAutoOpen(){S.autoOpen=!S.autoOpen;autoOpenT=0;autoOpenLast=null;save();renderPanel();updateAutoOpenUI();}
 
 function load(){try{const r=JSON.parse(localStorage.getItem("taba_save"));return r?{...DEF,...r}:{...DEF};}catch{return {...DEF};}}
 function save(){S.lastSeen=Date.now();localStorage.setItem("taba_save",JSON.stringify(S));}
 const DEF={gold:0,kills:0,region:0,stage:1,cleared:{},inv:[],deployed:["cavaleiro","arqueiro","feiticeiro"],
   tabs:[{id:1,name:"Geral"},{id:2,name:"Raros"},{id:3,name:"Lixo"}],activeTab:1,
   gear:{cavaleiro:{},arqueiro:{},feiticeiro:{}}, atkLvl:0,goldLvl:0,hpLvl:0,
-  pets:[],activePet:null,deuses:[],activeDeus:null, chests:{}, autoProg:true, stash:[],
+  pets:[],activePet:null,deuses:[],activeDeus:null, chests:{}, chestQueue:[], autoOpen:true, autoProg:true, stash:[],
   heroXp:{}, heroSkills:{}, heroAttrs:{}, cubeMode:"synthesis", runes:{}, difficulty:0, diffUnlocked:0, lastSeen:Date.now()};
 let S=load();
 // migração CRONO v1: regiões reordenadas p/ ordem cronológica da invasão (19/06 noite). Remapeia índices do save antigo.
@@ -777,9 +803,9 @@ function fireSkills(h,i,dt){const sk=S.heroSkills[h.key]||{};
 
 function rollRarity(){let t=RARITIES.reduce((a,r)=>a+r.w,0),x=Math.random()*t;for(const r of RARITIES){if((x-=r.w)<0)return r;}return RARITIES[0];}
 function dropLoot(){if(Math.random()>0.06+BON.loot+RB.loot)return;   // drop de baú raro por mob (Runa da Fartura aumenta · chefe sempre dropa)
-  const c=rollChestTier();S.chests[c.k]=(S.chests[c.k]||0)+1;chestDropFx(c.e);
+  const c=rollChestTier();S.chests[c.k]=(S.chests[c.k]||0)+1;S.chestQueue.push(c.k);chestDropFx(c.e);
   if(['osso','dourado','encantado'].includes(c.k))log(`Caiu um <b>${c.e} ${c.nome}</b>!`,'loot');
-  if(active==='bau')renderPanel();}
+  if(active==='bau'||active==='inv')renderPanel();}
 
 // Movimentação: avança ao atacar e recua à formação (a .fighter tem transition:transform). Velocidade já dita a frequência (cd).
 function lunge(id,dx){const el=document.getElementById(id);if(!el)return;const hold=Math.abs(dx)>40?210:120; // avanço grande (melee) segura mais p/ completar o passo
@@ -792,6 +818,7 @@ function updateProgBtn(){const b=document.getElementById('progBtn');if(b)b.textC
 let last=performance.now();
 function tick(now){const dt=Math.min((now-last)/1000,0.25);last=now;
   if(narrativePause){requestAnimationFrame(tick);return;}   // pausa durante dilema/final
+  autoOpenTick(dt);   // loop de loot roda sempre (marcha/combate/hit-stop)
   if(now<hitStopUntil){renderBars();requestAnimationFrame(tick);return;}   // hit-stop: congela o avanço (peso no impacto)
   if(!enemy){   // entre waves: heróis marcham (mundo rola), depois a próxima leva entra
     if(marchUntil===0)startMarch(now);
@@ -836,8 +863,9 @@ function enemyAttack(m,dom,mult){mult=mult||1;m._atks=(m._atks||0)+1;
   tgt.curHp-=dmgTaken;flash('h'+idx);hurtFrame(idx,tgt);hitSpark('h'+idx,ELEM_COLOR[m.elem]||'#e25555');squash('h'+idx);
   if(tgt.curHp<=0)log(`${tgt.name} caiu...`,'crit');if(party.every(h=>h.curHp<=0))wipe();}
 function dropBossChest(){S.chests['chefe']=(S.chests['chefe']||0)+1;S.chests['dourado']=(S.chests['dourado']||0)+1;
+  S.chestQueue.push('chefe','dourado');
   chestDropFx('🗝️');setTimeout(()=>chestDropFx('🎁'),200);
-  log(`🗝️ <b>Baú de Chefe</b> + 🎁 Baú Dourado conquistados!`,'loot');if(active==='bau')renderPanel();}
+  log(`🗝️ <b>Baú de Chefe</b> + 🎁 Baú Dourado conquistados!`,'loot');if(active==='bau'||active==='inv')renderPanel();}
 function killEnemy(){deathFx(isBoss);const g=Math.floor(enemyReward()*goldMul());S.gold+=g;S.kills++;killsOnNode++;
   floatTxt(380,'+'+g+'🪙','#D4A24C');
   {const xpg=Math.round((2+Math.pow(diff(S.region,S.stage),2)*1.2)*(isBoss?10:1)*(1+RB.xp)*legadoMul()); // escala de XP por dificuldade
@@ -1066,6 +1094,9 @@ function panelInventario(){
       <button style="background:#2d4a2f" onclick="stashItem(${it.id})">Guardar no Baú</button>
       <button style="background:#3a4a66;color:#cfe0d6" onclick="sellItem(${it.id})">Vender ${it.val}🪙</button></div></div>`;}
   panel.innerHTML=`<h2>Inventário <span class="muted">${S.inv.length}/${INV_CAP}</span></h2>
+    <div class="row" style="margin:4px 0;display:flex;align-items:center;gap:8px">
+      <button onclick="toggleAutoOpen()" style="background:${S.autoOpen?'#2d4a2f':'#3a2a2a'}">🔓 Auto-abrir: ${S.autoOpen?'ON':'OFF'}</button>
+      <span class="muted" style="font-size:11px">${S.autoOpen?`baús abrem sozinhos por cooldown (comum rápido · raro lento)${S.chestQueue&&S.chestQueue.length?` · fila ${S.chestQueue.length}`:''}`:'baús acumulam — abra manual abaixo'}</span></div>
     ${tray?`<div style="margin:6px 0"><div class="muted" style="font-size:11px;margin-bottom:2px">🎁 Baús — abrir cai no inventário (passe o mouse pela distribuição):</div>${tray}</div>`:'<p class="muted" style="font-size:11px">Sem baús no momento — derrote inimigos pra achar baús.</p>'}
     <div class="invgrid">${cells}</div>${act}
     <div style="margin-top:8px"><button onclick="stashAll()" style="background:#2d4a2f">Guardar tudo no Baú</button></div>`;
@@ -1232,7 +1263,7 @@ function panelMercado(){const porRar={};S.inv.forEach(it=>porRar[it.rarNome]=(po
 function offline(){const dt=Math.min((Date.now()-(S.lastSeen||Date.now()))/1000,(24+RB.offlineH)*3600);const rate=(3+diff(S.region,S.stage)*1.4)*goldMul()*1.5;
   if(dt>30){const g=Math.floor(rate*dt);S.gold+=g;log(`🌙 De volta! A resistência rendeu <span class="gold">${g.toLocaleString('pt-BR')}🪙</span> em ${Math.floor(dt/60)} min.`,'sys');}}
 
-recalcRB();recalcBon();offline();updateTop();drawArena();renderPanel();updateProgBtn();
+recalcRB();recalcBon();offline();syncChestQueue();updateTop();drawArena();renderPanel();updateProgBtn();
 document.getElementById('progBtn').onclick=()=>{S.autoProg=!S.autoProg;updateProgBtn();save();
   log(S.autoProg?'▶ Progressão automática LIGADA.':'🔒 Travado pra farmar este stage.','sys');
   if(S.autoProg&&isCleared(S.region,S.stage)&&!isBossStage(S.stage))advanceStage();};
